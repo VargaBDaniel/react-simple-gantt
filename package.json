@@ -1,0 +1,73 @@
+{
+  "name": "react-simple-gantt",
+  "private": false,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build && tsc --project tsconfig.lib.json",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "storybook": "npx storybook dev -p 6006",
+    "build-storybook": "npx storybook build"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@testing-library/react": "^16.3.2",
+    "date-fns": ">=3.0.0",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "tailwindcss": "^4.2.2"
+  },
+  "peerDependencies": {
+    "date-fns": ">=3.0.0",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@chromatic-com/storybook": "^5.0.2",
+    "@eslint/js": "^9.39.4",
+    "@rolldown/plugin-babel": "^0.2.2",
+    "@storybook/addon-a11y": "^10.3.0",
+    "@storybook/addon-docs": "^10.3.0",
+    "@storybook/addon-vitest": "^10.3.0",
+    "@storybook/builder-vite": "^10.3.0",
+    "@storybook/react-vite": "^10.3.0",
+    "@testing-library/dom": "^10.4.1",
+    "@types/node": "^24.12.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.0",
+    "@vitest/browser-playwright": "^4.1.0",
+    "@vitest/coverage-v8": "^4.1.0",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-compiler": "^19.1.0-rc.2",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "eslint-plugin-storybook": "^10.3.0",
+    "globals": "^17.4.0",
+    "jsdom": "^29.0.1",
+    "playwright": "^1.58.2",
+    "storybook": "^10.3.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.56.1",
+    "vite": "^8.0.0",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.1.0"
+  }
+}
