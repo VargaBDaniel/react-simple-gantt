@@ -149,6 +149,17 @@ export const Interactive: Story = {
         setSelected((prev) => (prev?.id === item.id ? null : item)),
       onItemHover: (item) => setHovered(item),
       onTrackClick: (trackId, date) => setTrackClick({ trackId, date }),
+      renderTrackIndicator: (date) => (
+        <div className="flex flex-col items-center h-full">
+          <span className="text-[10px] bg-blue-500 text-white rounded px-1 whitespace-nowrap -translate-x-1/2 leading-5">
+            {date.toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+            })}
+          </span>
+          <div className="flex-1 border-l border-dashed border-blue-400 opacity-60" />
+        </div>
+      ),
     });
 
     const VIEWS: ViewMode[] = ["day", "week", "month"];

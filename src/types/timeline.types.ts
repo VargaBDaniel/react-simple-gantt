@@ -47,6 +47,7 @@ export interface UseTimelineConfig<TData = unknown> {
   onItemHover?: (item: TimelineItem<TData> | null) => void;
   onTrackClick?: (trackId: string, date: Date) => void;
   renderItem?: (props: RenderItemProps<TData>) => ReactNode;
+  renderTrackIndicator?: (date: Date) => ReactNode;
 }
 
 export interface TimelineProps<TData = unknown> {
@@ -63,6 +64,7 @@ export interface TimelineProps<TData = unknown> {
   onItemClick: (item: TimelineItem<TData>) => void;
   onItemHover: (item: TimelineItem<TData> | null) => void;
   onTrackClick: (trackId: string, date: Date) => void;
+  renderTrackIndicator?: (date: Date) => ReactNode;
 }
 
 export interface UseTimelineReturn<TData = unknown> {

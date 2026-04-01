@@ -18,6 +18,7 @@ export function Timeline<TData = unknown>({
   onItemClick,
   onItemHover,
   onTrackClick,
+  renderTrackIndicator,
 }: TimelineProps<TData>) {
   const totalWidth = getTotalWidth(startDate, endDate, dayWidth);
 
@@ -78,6 +79,7 @@ export function Timeline<TData = unknown>({
               onItemClick={onItemClick}
               onItemHover={onItemHover}
               onTrackClick={onTrackClick}
+              renderTrackIndicator={renderTrackIndicator}
             />
           </div>
         );

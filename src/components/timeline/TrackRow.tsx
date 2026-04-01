@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   RenderItemProps,
   TimelineItem,
@@ -21,6 +22,7 @@ interface TrackRowProps<TData = unknown> {
   onItemClick: (item: TimelineItem<TData>) => void;
   onItemHover: (item: TimelineItem<TData> | null) => void;
   onTrackClick: (trackId: string, date: Date) => void;
+  renderTrackIndicator?: (date: Date) => React.ReactNode;
 }
 
 export function TrackRow<TData = unknown>({
@@ -37,7 +39,9 @@ export function TrackRow<TData = unknown>({
   onItemClick,
   onItemHover,
   onTrackClick,
+  renderTrackIndicator,
 }: TrackRowProps<TData>) {
+  const [indicatorX, setIndicatorX] = useState<number | null>(null);
   const header = getTwoRowHeader(startDate, endDate, view, dayWidth);
 
   // Pre-compute stable left offsets before render — avoids mutation during JSX evaluation
@@ -61,6 +65,17 @@ export function TrackRow<TData = unknown>({
           pixelToDate(e.clientX - rect.left, startDate, dayWidth),
         );
       }}
+      onMouseMove={
+        renderTrackIndicator
+          ? (e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setIndicatorX(e.clientX - rect.left);
+            }
+          : undefined
+      }
+      onMouseLeave={
+        renderTrackIndicator ? () => setIndicatorX(null) : undefined
+      }
     >
       {/* Vertical grid lines aligned to bottom-row calendar units */}
       {header.bottomRow.map((_unit, i) => (
@@ -92,6 +107,16 @@ export function TrackRow<TData = unknown>({
           />
         );
       })}
+
+      {/* Hover indicator — follows cursor X, spans full row height */}
+      {renderTrackIndicator && indicatorX !== null && (
+        <div
+          className="absolute top-0 bottom-0 pointer-events-none z-3"
+          style={{ left: indicatorX }}
+        >
+          {renderTrackIndicator(pixelToDate(indicatorX, startDate, dayWidth))}
+        </div>
+      )}
     </div>
   );
 }
