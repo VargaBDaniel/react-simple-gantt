@@ -48,6 +48,10 @@ export interface UseTimelineConfig<TData = unknown> {
   onTrackClick?: (trackId: string, date: Date) => void;
   renderItem?: (props: RenderItemProps<TData>) => ReactNode;
   renderTrackIndicator?: (date: Date) => ReactNode;
+  /** Extend the date window automatically when scrolling near either edge. */
+  infiniteScroll?: boolean;
+  /** Called whenever the internal date window grows. Use to load data for the new range. */
+  onDateWindowChange?: (start: Date, end: Date) => void;
 }
 
 export interface TimelineProps<TData = unknown> {
@@ -65,6 +69,8 @@ export interface TimelineProps<TData = unknown> {
   onItemHover: (item: TimelineItem<TData> | null) => void;
   onTrackClick: (trackId: string, date: Date) => void;
   renderTrackIndicator?: (date: Date) => ReactNode;
+  infiniteScroll?: boolean;
+  onDateWindowChange?: (start: Date, end: Date) => void;
 }
 
 export interface UseTimelineReturn<TData = unknown> {

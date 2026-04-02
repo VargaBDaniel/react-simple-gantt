@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTimeline } from "../../hooks/useTimeline";
 import type { TimelineItem, ViewMode } from "../../types/timeline.types";
 import { Timeline } from "./Timeline";
@@ -149,6 +149,14 @@ export const Interactive: Story = {
         setSelected((prev) => (prev?.id === item.id ? null : item)),
       onItemHover: (item) => setHovered(item),
       onTrackClick: (trackId, date) => setTrackClick({ trackId, date }),
+      infiniteScroll: true,
+      onDateWindowChange: (start, end) =>
+        console.log(
+          "[Timeline] window:",
+          start.toDateString(),
+          "→",
+          end.toDateString(),
+        ),
       renderTrackIndicator: (date) => (
         <div className="flex flex-col items-center h-full">
           <span className="text-[10px] bg-blue-500 text-white rounded px-1 whitespace-nowrap -translate-x-1/2 leading-5">
@@ -383,6 +391,276 @@ export const RichTrackTitles: Story = {
           ReactNode track titles — week view
         </h1>
         <Timeline {...timeline.getTimelineProps()} />
+      </div>
+    );
+  },
+};
+
+// ─── Story 4: InfiniteScroll — live window readout + load log ────────────────
+//
+// Clean showcase focused entirely on infinite scroll. Rendered in a fixed-
+// height container so the scroll bar is always visible. A log panel below
+// records every time the window expands so the consumer pattern is obvious.
+
+export const InfiniteScroll: Story = {
+  render: () => {
+    const [log, setLog] = useState<string[]>([]);
+
+    const timeline = useTimeline<TaskData>({
+      tracks: TRACKS,
+      items: ITEMS,
+      startDate: START_DATE,
+      endDate: END_DATE, // Jan 1 – Mar 15, plenty of room before edges
+      view: "day",
+      dayWidth: 36,
+      infiniteScroll: true,
+      onDateWindowChange: (start, end) => {
+        const entry = `${start.toLocaleDateString()} → ${end.toLocaleDateString()}`;
+        setLog((prev) => [entry, ...prev].slice(0, 8));
+      },
+    });
+
+    return (
+      <div className="p-6 flex flex-col gap-4 bg-gray-50 min-h-screen font-sans">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-800">
+            Infinite scroll
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Scroll left or right past the edge — the timeline extends
+            automatically and the date window is logged below.
+          </p>
+        </div>
+
+        {/* Fixed-height wrapper makes the scrollbar always visible */}
+        <div className="h-64">
+          <Timeline {...timeline.getTimelineProps()} />
+        </div>
+
+        {/* Window expansion log */}
+        <div className="bg-white border border-gray-200 rounded-md p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+            onDateWindowChange log
+          </p>
+          {log.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">
+              No expansions yet — scroll to the edges.
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {log.map((entry, i) => (
+                <li
+                  key={i}
+                  className={`text-sm font-mono ${i === 0 ? "text-blue-600 font-medium" : "text-gray-500"}`}
+                >
+                  {i === 0 && (
+                    <span className="text-[10px] bg-blue-100 text-blue-600 font-sans rounded px-1 py-0.5 mr-2 align-middle">
+                      latest
+                    </span>
+                  )}
+                  {entry}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    );
+  },
+};
+
+// ─── Story 5: InfiniteScroll — item spanning the expansion boundary ──────────
+//
+// Edge case: a work item whose end date is beyond the initial endDate. When
+// the window expands rightward the item should appear without any positional
+// jump. An item anchored before the initial startDate tests leftward expansion.
+
+const BOUNDARY_ITEMS: TimelineItem<TaskData>[] = [
+  // Starts well before the initial window — tests left expansion
+  {
+    id: "b1",
+    trackId: "frontend",
+    start: new Date(2026, 0, 1),
+    end: new Date(2026, 0, 8),
+    label: "Pre-window task",
+    data: { priority: "medium", assignee: "Bob" },
+  },
+  // Straddles the right boundary of the initial endDate (Jan 20)
+  {
+    id: "b2",
+    trackId: "backend",
+    start: new Date(2026, 0, 16),
+    end: new Date(2026, 0, 28), // extends beyond initial Jan 20 end
+    label: "Spanning task",
+    data: { priority: "high", assignee: "Dave" },
+  },
+  // Entirely outside the initial window — only appears after right expansion
+  {
+    id: "b3",
+    trackId: "qa",
+    start: new Date(2026, 1, 1),
+    end: new Date(2026, 1, 10),
+    label: "Future task",
+    data: { priority: "low", assignee: "Frank" },
+  },
+];
+
+export const InfiniteScrollBoundaryItems: Story = {
+  render: () => {
+    const timeline = useTimeline<TaskData>({
+      tracks: TRACKS,
+      items: BOUNDARY_ITEMS,
+      startDate: new Date(2026, 0, 10), // start mid-January
+      endDate: new Date(2026, 0, 20), // only 10 days visible initially
+      view: "day",
+      dayWidth: 40,
+      infiniteScroll: true,
+    });
+
+    return (
+      <div className="p-6 flex flex-col gap-4 bg-gray-50 min-h-screen font-sans">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-800">
+            Infinite scroll — boundary items
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Initial window is Jan 10–20. "Spanning task" straddles the right
+            edge. Scroll right to reveal "Future task", scroll left to reveal
+            "Pre-window task". Items should appear without positional jumps.
+          </p>
+        </div>
+        <div className="h-64">
+          <Timeline {...timeline.getTimelineProps()} />
+        </div>
+      </div>
+    );
+  },
+};
+
+// ─── Story 6: InfiniteScroll — async data loading simulation ─────────────────
+//
+// Edge case: the consumer fetches new items asynchronously when the window
+// changes. Simulates a 600 ms network delay with a loading indicator.
+// Tests that items arriving after the window has expanded are positioned
+// correctly and don't cause a layout shift.
+
+function generateItemsForWindow(
+  start: Date,
+  end: Date,
+): TimelineItem<TaskData>[] {
+  const result: TimelineItem<TaskData>[] = [];
+  const MS_PER_DAY = 86_400_000;
+  const days = Math.round((end.getTime() - start.getTime()) / MS_PER_DAY);
+
+  TRACKS.forEach((track, ti) => {
+    // One item per track per ~2-week block, offset by track index so they
+    // don't all line up on the same column.
+    for (let d = ti * 3; d < days; d += 14) {
+      const itemStart = new Date(start.getTime() + d * MS_PER_DAY);
+      const itemEnd = new Date(itemStart.getTime() + (5 + ti) * MS_PER_DAY);
+      if (itemEnd > end) break;
+      result.push({
+        id: `gen-${track.id}-${itemStart.getTime()}`,
+        trackId: track.id,
+        start: itemStart,
+        end: itemEnd,
+        label: `${track.title} task`,
+        data: {
+          priority: (["high", "medium", "low"] as const)[ti % 3],
+          assignee: ["Alice", "Bob", "Dave", "Frank", "Grace"][ti],
+        },
+      });
+    }
+  });
+  return result;
+}
+
+export const InfiniteScrollAsyncData: Story = {
+  render: () => {
+    const [items, setItems] = useState<TimelineItem<TaskData>[]>(() =>
+      generateItemsForWindow(START_DATE, END_DATE),
+    );
+    const [loading, setLoading] = useState(false);
+    // Track which windows we have already fetched so we don't re-fetch.
+    const fetchedWindows = useRef(new Set<string>());
+
+    const timeline = useTimeline<TaskData>({
+      tracks: TRACKS,
+      items,
+      startDate: START_DATE,
+      endDate: END_DATE,
+      view: "day",
+      dayWidth: 36,
+      infiniteScroll: true,
+      onDateWindowChange: (start, end) => {
+        const key = `${start.getTime()}-${end.getTime()}`;
+        if (fetchedWindows.current.has(key)) return;
+        fetchedWindows.current.add(key);
+
+        setLoading(true);
+        // Simulate a 600 ms async fetch
+        setTimeout(() => {
+          setItems((prev) => {
+            const newItems = generateItemsForWindow(start, end);
+            // Merge, deduplicating by id
+            const existingIds = new Set(prev.map((i) => i.id));
+            return [...prev, ...newItems.filter((i) => !existingIds.has(i.id))];
+          });
+          setLoading(false);
+        }, 600);
+      },
+    });
+
+    // Seed the initial window key so it isn't re-fetched on first expansion.
+    useEffect(() => {
+      fetchedWindows.current.add(
+        `${START_DATE.getTime()}-${END_DATE.getTime()}`,
+      );
+    }, []);
+
+    return (
+      <div className="p-6 flex flex-col gap-4 bg-gray-50 min-h-screen font-sans">
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-lg font-semibold text-gray-800">
+              Infinite scroll — async data loading
+            </h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Scroll to an edge — new items are fetched with a simulated 600 ms
+              delay. Items appear without layout shifts after loading.
+            </p>
+          </div>
+          {loading && (
+            <div className="ml-auto flex items-center gap-2 text-sm text-blue-600 bg-blue-50 border border-blue-200 rounded-md px-3 py-1.5">
+              <svg
+                className="animate-spin h-3.5 w-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v8H4z"
+                />
+              </svg>
+              Loading…
+            </div>
+          )}
+        </div>
+        <div className="h-72">
+          <Timeline {...timeline.getTimelineProps()} />
+        </div>
+        <p className="text-xs text-gray-400">
+          {items.length} items loaded across all tracks
+        </p>
       </div>
     );
   },
