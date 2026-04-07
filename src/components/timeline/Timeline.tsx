@@ -28,13 +28,17 @@ export function Timeline<TData = unknown>({
   onDateWindowChange,
 }: TimelineProps<TData>) {
   // ── Infinite-scroll date window ─────────────────────────────────────────
-  // When infiniteScroll is true, pre-extend the left edge by EXTEND_DAYS so
-  // the user starts with a buffer to the left — preventing an immediate
-  // left-extension trigger on the first scroll event.
+  // Pre-extend both edges by EXTEND_DAYS on initialisation:
+  //  - Left buffer prevents an immediate left-extension on the first scroll.
+  //  - Right buffer ensures totalWidth is large enough that the desired
+  //    scrollLeft (EXTEND_DAYS * dayWidth) is reachable even when the
+  //    caller's startDate–endDate range is narrow relative to the viewport.
   const [internalStart, setInternalStart] = useState(() =>
     infiniteScroll ? subDays(startDate, EXTEND_DAYS) : startDate,
   );
-  const [internalEnd, setInternalEnd] = useState(endDate);
+  const [internalEnd, setInternalEnd] = useState(() =>
+    infiniteScroll ? addDays(endDate, EXTEND_DAYS) : endDate,
+  );
 
   // Compensation to apply after a leftward window extension (see useLayoutEffect below).
   const pendingScrollAdjust = useRef(0);
@@ -57,6 +61,33 @@ export function Timeline<TData = unknown>({
   const prevInternalStartRef = useRef(internalStart);
   const prevInternalEndRef = useRef(internalEnd);
 
+  // Detect programmatic startDate / endDate prop changes (e.g. a "jump to date"
+  // button in the consumer). Uses React's "store info from previous renders" pattern
+  // with useState — React Compiler forbids ref.current access during render, so
+  // prevStartDateTs / prevEndDateTs are ordinary state, not refs.
+  //
+  // anchoredStartTsRef / anchoredEndTsRef are the timestamps the layout effect has
+  // most recently processed. They are ONLY written inside the layout effect (never
+  // during render), so comparing them to the current state lets the effect detect
+  // "this is the first commit after a date change" without any ref reads at render time.
+  const [prevStartDateTs, setPrevStartDateTs] = useState(startDate.getTime());
+  const [prevEndDateTs, setPrevEndDateTs] = useState(endDate.getTime());
+  const anchoredStartTsRef = useRef(startDate.getTime());
+  const anchoredEndTsRef = useRef(endDate.getTime());
+
+  if (infiniteScroll) {
+    const startTs = startDate.getTime();
+    const endTs = endDate.getTime();
+    if (startTs !== prevStartDateTs || endTs !== prevEndDateTs) {
+      // setState during render: React immediately re-renders before painting.
+      // Safe per the "store info from previous renders" pattern.
+      setPrevStartDateTs(startTs);
+      setPrevEndDateTs(endTs);
+      setInternalStart(subDays(startDate, EXTEND_DAYS));
+      setInternalEnd(addDays(endDate, EXTEND_DAYS));
+    }
+  }
+
   // Hold the latest callback in a ref so the notification effect below doesn't
   // need to depend on it — an inline callback passed from the story/app changes
   // identity every render, which would cause an infinite setState → re-render
@@ -70,10 +101,12 @@ export function Timeline<TData = unknown>({
   // Single layout effect that owns all scroll-position management:
   //
   //  1. On mount (hasMounted starts false): anchor viewport to startDate.
-  //  2. On dayWidth change (view switch): re-anchor so dates stay stable.
-  //  3. On internalStart/internalEnd change (extension commit): apply left-side
+  //  2. On startDate/endDate prop change (anchoredTs mismatch): re-anchor to new range.
+  //     setState was already called during render; this branch only touches the DOM.
+  //  3. On dayWidth change (view switch): re-anchor so dates stay stable.
+  //  4. On internalStart/internalEnd change (extension commit): apply left-side
   //     scroll compensation and release the extension gate.
-  //  4. Any other render: no-op.
+  //  5. Any other render: no-op.
   //
   // Running without a dep array means it fires after every render, but the
   // ref-based change detection ensures only the relevant branch executes.
@@ -94,6 +127,27 @@ export function Timeline<TData = unknown>({
       prevDayWidthRef.current = dayWidth;
       prevInternalStartRef.current = internalStart;
       prevInternalEndRef.current = internalEnd;
+      return;
+    }
+
+    // Programmatic startDate / endDate prop change: setState was already called
+    // during render, so internalStart / internalEnd are already the new values.
+    // Compare current state timestamps to the last-anchored refs to detect the
+    // first commit after a date change (refs only written here, never during render).
+    const isDateReset =
+      prevStartDateTs !== anchoredStartTsRef.current ||
+      prevEndDateTs !== anchoredEndTsRef.current;
+    if (isDateReset) {
+      anchoredStartTsRef.current = prevStartDateTs;
+      anchoredEndTsRef.current = prevEndDateTs;
+      prevInternalStartRef.current = internalStart;
+      prevInternalEndRef.current = internalEnd;
+      pendingScrollAdjust.current = 0;
+      isExtending.current = false;
+      prevDayWidthRef.current = dayWidth;
+      const newLeft = EXTEND_DAYS * dayWidth;
+      el.scrollLeft = newLeft;
+      prevScrollLeftRef.current = newLeft;
       return;
     }
 
@@ -185,7 +239,7 @@ export function Timeline<TData = unknown>({
   return (
     <div
       ref={containerRef}
-      className="overflow-auto border border-gray-200 rounded-md"
+      className="overflow-auto border border-gray-200 rounded-md bg-white"
       style={infiniteScroll ? { overflowAnchor: "none" } : undefined}
       onScroll={infiniteScroll ? handleScroll : undefined}
     >

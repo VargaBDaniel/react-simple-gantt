@@ -494,12 +494,13 @@ const BOUNDARY_ITEMS: TimelineItem<TaskData>[] = [
     label: "Spanning task",
     data: { priority: "high", assignee: "Dave" },
   },
-  // Entirely outside the initial window — only appears after right expansion
+  // Starts in March — outside the initial pre-extended window (Jan 20 + 30 days
+  // = Feb 19), so it only appears after the first rightward extension.
   {
     id: "b3",
     trackId: "qa",
-    start: new Date(2026, 1, 1),
-    end: new Date(2026, 1, 10),
+    start: new Date(2026, 2, 1),
+    end: new Date(2026, 2, 10),
     label: "Future task",
     data: { priority: "low", assignee: "Frank" },
   },
@@ -524,9 +525,10 @@ export const InfiniteScrollBoundaryItems: Story = {
             Infinite scroll — boundary items
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Initial window is Jan 10–20. "Spanning task" straddles the right
-            edge. Scroll right to reveal "Future task", scroll left to reveal
-            "Pre-window task". Items should appear without positional jumps.
+            Initial window is Jan 10–20 (both edges pre-buffered by 30 days).
+            "Spanning task" straddles the right edge. Scroll right past Feb 19
+            to trigger an extension and reveal "Future task" in March. Scroll
+            left to reveal "Pre-window task".
           </p>
         </div>
         <div className="h-64">
@@ -661,6 +663,789 @@ export const InfiniteScrollAsyncData: Story = {
         <p className="text-xs text-gray-400">
           {items.length} items loaded across all tracks
         </p>
+      </div>
+    );
+  },
+};
+
+// ─── Story 7: Empty state — no items on any track ────────────────────────────
+//
+// Edge case: consumer provides tracks but no items. Every track row should
+// render as an empty-yet-correct-height row; nothing should crash or collapse.
+
+export const EmptyState: Story = {
+  render: () => {
+    const timeline = useTimeline<TaskData>({
+      tracks: TRACKS,
+      items: [],
+      startDate: START_DATE,
+      endDate: new Date(2026, 1, 28),
+      view: "day",
+      dayWidth: 36,
+    });
+
+    return (
+      <div className="p-6 flex flex-col gap-3 bg-gray-50 min-h-screen font-sans">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-800">
+            Empty state — no items
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            All tracks are present but have zero items. Rows should render at
+            correct height with no crashes or collapsed layout.
+          </p>
+        </div>
+        <Timeline {...timeline.getTimelineProps()} />
+      </div>
+    );
+  },
+};
+
+// ─── Story 8: Overlapping items on the same track ────────────────────────────
+//
+// Edge case: multiple items on a single track whose date ranges overlap.
+// They render as absolutely-positioned bars on the same row — the later item
+// in DOM order (and higher z-index when selected/hovered) wins visually.
+// This story makes the overlap obvious so consumers know to either prevent
+// overlaps upstream or use a custom renderer that stacks rows.
+
+const OVERLAP_TRACKS = [
+  { id: "track-a", title: "Track A — heavy overlap" },
+  { id: "track-b", title: "Track B — partial overlap" },
+  { id: "track-c", title: "Track C — touching (no overlap)" },
+];
+
+const OVERLAP_ITEMS: TimelineItem<TaskData>[] = [
+  // Track A: three items all covering Jan 5–25 (fully overlapping)
+  {
+    id: "oa1",
+    trackId: "track-a",
+    start: new Date(2026, 0, 5),
+    end: new Date(2026, 0, 25),
+    label: "Task A1",
+    data: { priority: "high", assignee: "Alice" },
+  },
+  {
+    id: "oa2",
+    trackId: "track-a",
+    start: new Date(2026, 0, 8),
+    end: new Date(2026, 0, 20),
+    label: "Task A2",
+    data: { priority: "medium", assignee: "Bob" },
+  },
+  {
+    id: "oa3",
+    trackId: "track-a",
+    start: new Date(2026, 0, 12),
+    end: new Date(2026, 0, 18),
+    label: "Task A3 (innermost)",
+    data: { priority: "low", assignee: "Carol" },
+  },
+  // Track B: two items with a partial overlap in the middle
+  {
+    id: "ob1",
+    trackId: "track-b",
+    start: new Date(2026, 0, 3),
+    end: new Date(2026, 0, 18),
+    label: "Task B1",
+    data: { priority: "high", assignee: "Dave" },
+  },
+  {
+    id: "ob2",
+    trackId: "track-b",
+    start: new Date(2026, 0, 14),
+    end: new Date(2026, 0, 28),
+    label: "Task B2",
+    data: { priority: "medium", assignee: "Eve" },
+  },
+  // Track C: two items that touch end-to-end but don't overlap
+  {
+    id: "oc1",
+    trackId: "track-c",
+    start: new Date(2026, 0, 5),
+    end: new Date(2026, 0, 15),
+    label: "Task C1",
+    data: { priority: "low", assignee: "Frank" },
+  },
+  {
+    id: "oc2",
+    trackId: "track-c",
+    start: new Date(2026, 0, 15),
+    end: new Date(2026, 0, 25),
+    label: "Task C2",
+    data: { priority: "low", assignee: "Grace" },
+  },
+];
+
+export const OverlappingItems: Story = {
+  render: () => {
+    const timeline = useTimeline<TaskData>({
+      tracks: OVERLAP_TRACKS,
+      items: OVERLAP_ITEMS,
+      startDate: new Date(2026, 0, 1),
+      endDate: new Date(2026, 1, 1),
+      view: "day",
+      dayWidth: 36,
+    });
+
+    return (
+      <div className="p-6 flex flex-col gap-3 bg-gray-50 min-h-screen font-sans">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-800">
+            Overlapping items
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Track A has three fully-overlapping items. Track B has two
+            partially-overlapping items. Track C has two items that touch but do
+            not overlap. Later items in DOM order paint on top; selecting or
+            hovering an item brings it to the front via z-index.
+          </p>
+        </div>
+        <Timeline {...timeline.getTimelineProps()} />
+      </div>
+    );
+  },
+};
+
+// ─── Story 9: Single-day and point-in-time items ─────────────────────────────
+//
+// Edge case: items whose start === end (zero duration) and items that span
+// exactly one day. WorkItem renders them with width derived from
+// itemToStyle — a zero or near-zero width must not collapse or crash.
+
+const POINT_TRACKS = [
+  { id: "milestones", title: "Milestones (same-day)" },
+  { id: "oneday", title: "One-day tasks" },
+  { id: "normal", title: "Normal tasks (reference)" },
+];
+
+const POINT_ITEMS: TimelineItem<TaskData>[] = [
+  // Zero-duration milestone events
+  {
+    id: "m1",
+    trackId: "milestones",
+    start: new Date(2026, 0, 5),
+    end: new Date(2026, 0, 5),
+    label: "Kickoff",
+    data: { priority: "high", assignee: "Alice" },
+  },
+  {
+    id: "m2",
+    trackId: "milestones",
+    start: new Date(2026, 0, 12),
+    end: new Date(2026, 0, 12),
+    label: "Design review",
+    data: { priority: "medium", assignee: "Bob" },
+  },
+  {
+    id: "m3",
+    trackId: "milestones",
+    start: new Date(2026, 0, 20),
+    end: new Date(2026, 0, 20),
+    label: "Code freeze",
+    data: { priority: "high", assignee: "Carol" },
+  },
+  {
+    id: "m4",
+    trackId: "milestones",
+    start: new Date(2026, 0, 28),
+    end: new Date(2026, 0, 28),
+    label: "Release",
+    data: { priority: "high", assignee: "Dave" },
+  },
+  // One-day tasks (end === start, same calendar day)
+  {
+    id: "d1",
+    trackId: "oneday",
+    start: new Date(2026, 0, 6),
+    end: new Date(2026, 0, 6),
+    label: "Deploy patch",
+    data: { priority: "high", assignee: "Eve" },
+  },
+  {
+    id: "d2",
+    trackId: "oneday",
+    start: new Date(2026, 0, 14),
+    end: new Date(2026, 0, 14),
+    label: "Hotfix",
+    data: { priority: "high", assignee: "Frank" },
+  },
+  {
+    id: "d3",
+    trackId: "oneday",
+    start: new Date(2026, 0, 22),
+    end: new Date(2026, 0, 22),
+    label: "DB migration",
+    data: { priority: "medium", assignee: "Grace" },
+  },
+  // Normal multi-day reference items so the row height is consistent
+  {
+    id: "n1",
+    trackId: "normal",
+    start: new Date(2026, 0, 3),
+    end: new Date(2026, 0, 13),
+    label: "Sprint 1",
+    data: { priority: "medium", assignee: "Alice" },
+  },
+  {
+    id: "n2",
+    trackId: "normal",
+    start: new Date(2026, 0, 14),
+    end: new Date(2026, 0, 24),
+    label: "Sprint 2",
+    data: { priority: "medium", assignee: "Bob" },
+  },
+];
+
+export const SingleDayItems: Story = {
+  render: () => {
+    const timeline = useTimeline<TaskData>({
+      tracks: POINT_TRACKS,
+      items: POINT_ITEMS,
+      startDate: new Date(2026, 0, 1),
+      endDate: new Date(2026, 1, 1),
+      view: "day",
+      dayWidth: 36,
+      renderItem: ({ item, isSelected, isHovered }) => {
+        const isMilestone = item.start.getTime() === item.end.getTime();
+        return isMilestone ? (
+          // Diamond milestone marker
+          <div
+            className={`h-full w-full flex items-center justify-center
+              ${isSelected ? "opacity-100" : isHovered ? "opacity-90" : "opacity-80"}`}
+          >
+            <div
+              className={`w-3 h-3 rotate-45 shrink-0
+                ${isSelected ? "bg-purple-600 ring-2 ring-purple-300" : "bg-purple-500"}`}
+            />
+          </div>
+        ) : (
+          <div className="h-full w-full flex items-center px-1 overflow-hidden">
+            <span className="text-[10px] text-white font-medium truncate leading-none">
+              {item.label}
+            </span>
+          </div>
+        );
+      },
+    });
+
+    return (
+      <div className="p-6 flex flex-col gap-3 bg-gray-50 min-h-screen font-sans">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-800">
+            Single-day &amp; point-in-time items
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            "Milestones" track has zero-duration items (start === end) rendered
+            as diamond markers. "One-day tasks" also uses start === end —
+            <code>end</code> is inclusive, so a single-day task occupies exactly
+            one column. Both should render at correct width.
+          </p>
+        </div>
+        <Timeline {...timeline.getTimelineProps()} />
+      </div>
+    );
+  },
+};
+
+// ─── Story 10: Many tracks — vertical scroll + sticky header/labels ───────────
+//
+// Edge case: a large number of tracks to confirm the sticky header row and
+// sticky label column remain fixed while the body scrolls vertically.
+
+const MANY_TRACKS = Array.from({ length: 20 }, (_, i) => ({
+  id: `team-${i + 1}`,
+  title: `Team ${i + 1}`,
+}));
+
+const MANY_ITEMS: TimelineItem<TaskData>[] = MANY_TRACKS.flatMap(
+  (track, ti) => {
+    const priorities = ["high", "medium", "low"] as const;
+    const assignees = ["Alice", "Bob", "Carol", "Dave", "Eve"];
+    const offset = ti * 2; // stagger start by 2 days per track
+    return [
+      {
+        id: `${track.id}-a`,
+        trackId: track.id,
+        start: new Date(2026, 0, 1 + offset),
+        end: new Date(2026, 0, 10 + offset),
+        label: `${track.title} — phase 1`,
+        data: { priority: priorities[ti % 3], assignee: assignees[ti % 5] },
+      },
+      {
+        id: `${track.id}-b`,
+        trackId: track.id,
+        start: new Date(2026, 0, 12 + offset),
+        end: new Date(2026, 0, 22 + offset),
+        label: `${track.title} — phase 2`,
+        data: {
+          priority: priorities[(ti + 1) % 3],
+          assignee: assignees[(ti + 2) % 5],
+        },
+      },
+    ];
+  },
+);
+
+export const ManyTracks: Story = {
+  render: () => {
+    const timeline = useTimeline<TaskData>({
+      tracks: MANY_TRACKS,
+      items: MANY_ITEMS,
+      startDate: START_DATE,
+      endDate: new Date(2026, 2, 1),
+      view: "day",
+      dayWidth: 32,
+    });
+
+    return (
+      <div className="p-6 flex flex-col gap-3 bg-gray-50 font-sans">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-800">
+            Many tracks — sticky header &amp; labels
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            20 tracks. Scroll down — the calendar header should stay pinned to
+            the top. Scroll right — the track label column should stay pinned to
+            the left.
+          </p>
+        </div>
+        {/* Fixed height forces vertical overflow so sticky behaviour is exercised */}
+        <div className="h-120">
+          <Timeline {...timeline.getTimelineProps()} />
+        </div>
+      </div>
+    );
+  },
+};
+
+// ─── Story 11: Out-of-window items — clipping at fixed range boundary ────────
+//
+// Edge case: items whose start < startDate or end > endDate when infiniteScroll
+// is off. TrackRow uses overflow: hidden so straddling items clip cleanly at
+// [0, totalWidth] — the in-window portion is shown, and fully-outside items
+// are invisible. Enable infiniteScroll to grow the window as the user scrolls.
+
+const OOW_TRACKS = [
+  { id: "oow-a", title: "Straddles left" },
+  { id: "oow-b", title: "Straddles right" },
+  { id: "oow-c", title: "Fully outside left" },
+  { id: "oow-d", title: "Fully outside right" },
+  { id: "oow-e", title: "Fully inside (ref)" },
+];
+
+const OOW_START = new Date(2026, 0, 10); // Jan 10
+const OOW_END = new Date(2026, 0, 25); // Jan 25
+
+const OOW_ITEMS: TimelineItem<TaskData>[] = [
+  // Straddles left boundary (start before window)
+  {
+    id: "oo1",
+    trackId: "oow-a",
+    start: new Date(2026, 0, 5),
+    end: new Date(2026, 0, 15),
+    label: "Starts before window",
+    data: { priority: "high", assignee: "Alice" },
+  },
+  // Straddles right boundary (end after window)
+  {
+    id: "oo2",
+    trackId: "oow-b",
+    start: new Date(2026, 0, 20),
+    end: new Date(2026, 0, 30),
+    label: "Ends after window",
+    data: { priority: "medium", assignee: "Bob" },
+  },
+  // Entirely before window
+  {
+    id: "oo3",
+    trackId: "oow-c",
+    start: new Date(2025, 11, 28),
+    end: new Date(2026, 0, 5),
+    label: "Entirely before",
+    data: { priority: "low", assignee: "Carol" },
+  },
+  // Entirely after window
+  {
+    id: "oo4",
+    trackId: "oow-d",
+    start: new Date(2026, 0, 28),
+    end: new Date(2026, 1, 5),
+    label: "Entirely after",
+    data: { priority: "low", assignee: "Dave" },
+  },
+  // Normal item — inside window for comparison
+  {
+    id: "oo5",
+    trackId: "oow-e",
+    start: new Date(2026, 0, 12),
+    end: new Date(2026, 0, 22),
+    label: "Normal item",
+    data: { priority: "high", assignee: "Eve" },
+  },
+];
+
+export const OutOfWindowItems: Story = {
+  render: () => {
+    const timeline = useTimeline<TaskData>({
+      tracks: OOW_TRACKS,
+      items: OOW_ITEMS,
+      startDate: OOW_START,
+      endDate: OOW_END,
+      view: "day",
+      dayWidth: 40,
+    });
+
+    return (
+      <div className="p-6 flex flex-col gap-3 bg-gray-50 min-h-screen font-sans">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-800">
+            Out-of-window items (fixed range, no infinite scroll)
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Window is Jan 10–25. Items that straddle a boundary show only their
+            in-window portion; items fully outside the range are not rendered.
+            Enable <code>infiniteScroll</code> to let the window grow as the
+            user scrolls toward hidden items.
+          </p>
+        </div>
+        {/* w-fit + self-start shrink-wrap the border to the content width */}
+        <div className="w-fit self-start">
+          <Timeline {...timeline.getTimelineProps()} />
+        </div>
+      </div>
+    );
+  },
+};
+
+// ─── Story 12: Zoom levels — day width from very dense to very spacious ───────
+//
+// Edge case: extreme dayWidth values. At 4 px/day bars are barely visible;
+// at 120 px/day the header top row can run out of horizontal space for labels.
+// The timeline should not crash or mis-render at either extreme.
+
+const ZOOM_LEVELS: Array<{ label: string; dayWidth: number; view: ViewMode }> =
+  [
+    { label: "4 px / day", dayWidth: 4, view: "day" },
+    { label: "12 px / day", dayWidth: 12, view: "day" },
+    { label: "36 px / day (def.)", dayWidth: 36, view: "day" },
+    { label: "80 px / day", dayWidth: 80, view: "day" },
+    { label: "120 px / day", dayWidth: 120, view: "day" },
+    { label: "Month view", dayWidth: 36, view: "month" },
+  ];
+
+export const ZoomLevels: Story = {
+  render: () => {
+    const [zoomIdx, setZoomIdx] = useState(2);
+    const { dayWidth, view } = ZOOM_LEVELS[zoomIdx];
+
+    const timeline = useTimeline<TaskData>({
+      tracks: TRACKS,
+      items: ITEMS,
+      startDate: START_DATE,
+      endDate: END_DATE,
+      view,
+      dayWidth,
+    });
+
+    return (
+      <div className="p-6 flex flex-col gap-4 bg-gray-50 min-h-screen font-sans">
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-lg font-semibold text-gray-800 mr-2">
+            Zoom levels
+          </h1>
+          {ZOOM_LEVELS.map((z, i) => (
+            <button
+              key={i}
+              onClick={() => setZoomIdx(i)}
+              className={`px-3 py-1 text-sm rounded-md border transition-colors ${
+                i === zoomIdx
+                  ? "bg-blue-500 text-white border-blue-500"
+                  : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              {z.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-sm text-gray-500 -mt-2">
+          Current: <strong>{dayWidth} px/day</strong> — {view} view
+        </p>
+        <Timeline {...timeline.getTimelineProps()} />
+      </div>
+    );
+  },
+};
+
+// ─── Story 13: Cross-year span — December 2025 → February 2026 ───────────────
+//
+// Edge case: the date range straddles a year boundary. The top row in day/week
+// view shows "MMMM yyyy" per month, so "December 2025", "January 2026", and
+// "February 2026" should all appear. In month view the top row shows years.
+
+const XMAS_TRACKS = [
+  { id: "xmas-a", title: "Cross-year task" },
+  { id: "xmas-b", title: "Dec only" },
+  { id: "xmas-c", title: "Jan only" },
+  { id: "xmas-d", title: "Feb only" },
+];
+
+const XMAS_ITEMS: TimelineItem<TaskData>[] = [
+  {
+    id: "x1",
+    trackId: "xmas-a",
+    start: new Date(2025, 11, 20),
+    end: new Date(2026, 0, 10),
+    label: "Year-spanning task",
+    data: { priority: "high", assignee: "Alice" },
+  },
+  {
+    id: "x2",
+    trackId: "xmas-b",
+    start: new Date(2025, 11, 1),
+    end: new Date(2025, 11, 18),
+    label: "Q4 wrap-up",
+    data: { priority: "medium", assignee: "Bob" },
+  },
+  {
+    id: "x3",
+    trackId: "xmas-b",
+    start: new Date(2025, 11, 26),
+    end: new Date(2025, 11, 31),
+    label: "Holiday prep",
+    data: { priority: "low", assignee: "Carol" },
+  },
+  {
+    id: "x4",
+    trackId: "xmas-c",
+    start: new Date(2026, 0, 5),
+    end: new Date(2026, 0, 20),
+    label: "New year sprint",
+    data: { priority: "high", assignee: "Dave" },
+  },
+  {
+    id: "x5",
+    trackId: "xmas-d",
+    start: new Date(2026, 1, 2),
+    end: new Date(2026, 1, 20),
+    label: "Feb deliverable",
+    data: { priority: "medium", assignee: "Eve" },
+  },
+];
+
+export const CrossYearSpan: Story = {
+  render: () => {
+    const [view, setView] = useState<ViewMode>("day");
+    const dayWidth = view === "day" ? 28 : view === "week" ? 18 : 40;
+
+    const timeline = useTimeline<TaskData>({
+      tracks: XMAS_TRACKS,
+      items: XMAS_ITEMS,
+      startDate: new Date(2025, 11, 1),
+      endDate: new Date(2026, 1, 28),
+      view,
+      dayWidth,
+    });
+
+    const VIEWS: ViewMode[] = ["day", "week", "month"];
+
+    return (
+      <div className="p-6 flex flex-col gap-4 bg-gray-50 min-h-screen font-sans">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-lg font-semibold text-gray-800">
+              Cross-year span — Dec 2025 → Feb 2026
+            </h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              The header top row must show "December 2025", "January 2026", and
+              "February 2026" in day/week view — and both years in month view.
+            </p>
+          </div>
+          <div className="flex h-8 rounded-md border border-gray-300 overflow-hidden shrink-0">
+            {VIEWS.map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1 text-sm capitalize transition-colors ${
+                  view === v
+                    ? "bg-blue-500 text-white"
+                    : "bg-white text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+        <Timeline {...timeline.getTimelineProps()} />
+      </div>
+    );
+  },
+};
+
+// ─── Story 14: Programmatic date change — "jump to date" with infinite scroll ─
+//
+// Edge case: the consumer changes startDate / endDate props after mount (e.g.
+// "jump to today" or a date-picker navigation). For non-infinite-scroll this
+// works automatically. For infinite-scroll, Timeline detects the prop change
+// in its layout effect and re-anchors the scroll position to the new range.
+
+const QUARTERS: Array<{ label: string; start: Date; end: Date }> = [
+  { label: "Q1 2026", start: new Date(2026, 0, 1), end: new Date(2026, 2, 31) },
+  { label: "Q2 2026", start: new Date(2026, 3, 1), end: new Date(2026, 5, 30) },
+  { label: "Q3 2026", start: new Date(2026, 6, 1), end: new Date(2026, 8, 30) },
+  {
+    label: "Q4 2026",
+    start: new Date(2026, 9, 1),
+    end: new Date(2026, 11, 31),
+  },
+];
+
+const JUMP_ITEMS: TimelineItem<TaskData>[] = [
+  {
+    id: "j1",
+    trackId: "design",
+    start: new Date(2026, 0, 5),
+    end: new Date(2026, 0, 20),
+    label: "Q1 — Design",
+    data: { priority: "high", assignee: "Alice" },
+  },
+  {
+    id: "j2",
+    trackId: "frontend",
+    start: new Date(2026, 0, 12),
+    end: new Date(2026, 0, 28),
+    label: "Q1 — Frontend",
+    data: { priority: "medium", assignee: "Bob" },
+  },
+  {
+    id: "j3",
+    trackId: "backend",
+    start: new Date(2026, 1, 5),
+    end: new Date(2026, 2, 15),
+    label: "Q1 — Backend",
+    data: { priority: "high", assignee: "Dave" },
+  },
+  {
+    id: "j4",
+    trackId: "design",
+    start: new Date(2026, 3, 3),
+    end: new Date(2026, 3, 24),
+    label: "Q2 — Design",
+    data: { priority: "medium", assignee: "Alice" },
+  },
+  {
+    id: "j5",
+    trackId: "frontend",
+    start: new Date(2026, 4, 1),
+    end: new Date(2026, 4, 20),
+    label: "Q2 — Frontend",
+    data: { priority: "high", assignee: "Carol" },
+  },
+  {
+    id: "j6",
+    trackId: "backend",
+    start: new Date(2026, 4, 10),
+    end: new Date(2026, 5, 5),
+    label: "Q2 — Backend",
+    data: { priority: "low", assignee: "Dave" },
+  },
+  {
+    id: "j7",
+    trackId: "design",
+    start: new Date(2026, 6, 7),
+    end: new Date(2026, 6, 25),
+    label: "Q3 — Design",
+    data: { priority: "high", assignee: "Alice" },
+  },
+  {
+    id: "j8",
+    trackId: "frontend",
+    start: new Date(2026, 7, 1),
+    end: new Date(2026, 7, 22),
+    label: "Q3 — Frontend",
+    data: { priority: "medium", assignee: "Bob" },
+  },
+  {
+    id: "j9",
+    trackId: "backend",
+    start: new Date(2026, 7, 15),
+    end: new Date(2026, 8, 10),
+    label: "Q3 — Backend",
+    data: { priority: "high", assignee: "Eve" },
+  },
+  {
+    id: "j10",
+    trackId: "design",
+    start: new Date(2026, 9, 5),
+    end: new Date(2026, 9, 22),
+    label: "Q4 — Design",
+    data: { priority: "low", assignee: "Alice" },
+  },
+  {
+    id: "j11",
+    trackId: "frontend",
+    start: new Date(2026, 10, 3),
+    end: new Date(2026, 10, 18),
+    label: "Q4 — Frontend",
+    data: { priority: "medium", assignee: "Carol" },
+  },
+  {
+    id: "j12",
+    trackId: "backend",
+    start: new Date(2026, 10, 12),
+    end: new Date(2026, 11, 5),
+    label: "Q4 — Backend",
+    data: { priority: "high", assignee: "Dave" },
+  },
+];
+
+export const ProgrammaticDateChange: Story = {
+  render: () => {
+    const [quarterIdx, setQuarterIdx] = useState(0);
+    const { start, end } = QUARTERS[quarterIdx];
+
+    const timeline = useTimeline<TaskData>({
+      tracks: TRACKS.slice(0, 3), // design, frontend, backend
+      items: JUMP_ITEMS,
+      startDate: start,
+      endDate: end,
+      view: "day",
+      dayWidth: 24,
+      infiniteScroll: true,
+    });
+
+    return (
+      <div className="p-6 flex flex-col gap-4 bg-gray-50 min-h-screen font-sans">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-800">
+            Programmatic date change with infinite scroll
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Clicking a quarter resets <code>startDate</code> /{" "}
+            <code>endDate</code> props while <code>infiniteScroll</code> is
+            active. The internal window and scroll position reset to the new
+            range.
+          </p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {QUARTERS.map((q, i) => (
+            <button
+              key={q.label}
+              onClick={() => setQuarterIdx(i)}
+              className={`px-4 py-1.5 text-sm rounded-md border font-medium transition-colors ${
+                i === quarterIdx
+                  ? "bg-blue-500 text-white border-blue-500"
+                  : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              {q.label}
+            </button>
+          ))}
+        </div>
+        <div className="h-64">
+          <Timeline {...timeline.getTimelineProps()} />
+        </div>
       </div>
     );
   },

@@ -56,7 +56,7 @@ export function TrackRow<TData = unknown>({
 
   return (
     <div
-      className="relative border-b border-gray-100"
+      className="relative overflow-hidden border-b border-gray-100"
       style={{ width: totalWidth, minHeight: 48 }}
       onClick={(e) => {
         const rect = e.currentTarget.getBoundingClientRect();
