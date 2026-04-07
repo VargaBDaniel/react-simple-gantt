@@ -26,6 +26,7 @@ export function Timeline<TData = unknown>({
   renderTrackIndicator,
   infiniteScroll = false,
   onDateWindowChange,
+  itemStagger,
 }: TimelineProps<TData>) {
   // ── Infinite-scroll date window ─────────────────────────────────────────
   // Pre-extend both edges by EXTEND_DAYS on initialisation:
@@ -305,6 +306,7 @@ export function Timeline<TData = unknown>({
               onItemHover={onItemHover}
               onTrackClick={onTrackClick}
               renderTrackIndicator={renderTrackIndicator}
+              itemStagger={itemStagger}
             />
           </div>
         );

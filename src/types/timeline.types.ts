@@ -52,6 +52,14 @@ export interface UseTimelineConfig<TData = unknown> {
   infiniteScroll?: boolean;
   /** Called whenever the internal date window grows. Use to load data for the new range. */
   onDateWindowChange?: (start: Date, end: Date) => void;
+  /**
+   * Vertical stagger factor for overlapping items within a track.
+   * 0 (default) = all items fully overlap at the same vertical position.
+   * 1 = items are spread into non-overlapping lanes that each occupy a full
+   *     row-height slot. Values between 0 and 1 interpolate between the two.
+   * Row height grows automatically to accommodate the staggered lanes.
+   */
+  itemStagger?: number;
 }
 
 export interface TimelineProps<TData = unknown> {
@@ -71,6 +79,7 @@ export interface TimelineProps<TData = unknown> {
   renderTrackIndicator?: (date: Date) => ReactNode;
   infiniteScroll?: boolean;
   onDateWindowChange?: (start: Date, end: Date) => void;
+  itemStagger?: number;
 }
 
 export interface UseTimelineReturn<TData = unknown> {

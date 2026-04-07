@@ -4,6 +4,11 @@ interface WorkItemProps<TData = unknown> {
   item: TimelineItem<TData>;
   left: number;
   width: number;
+  /** Explicit top offset in px, provided when itemStagger > 0. When absent the
+   *  item is centred via Tailwind's top-1/2 / -translate-y-1/2 classes. */
+  top?: number;
+  /** Explicit item bar height in px, companion to `top`. */
+  itemH?: number;
   isSelected: boolean;
   isHovered: boolean;
   renderItem?: (props: RenderItemProps<TData>) => React.ReactNode;
@@ -16,6 +21,8 @@ export function WorkItem<TData = unknown>({
   item,
   left,
   width,
+  top,
+  itemH,
   isSelected,
   isHovered,
   renderItem,
@@ -23,8 +30,12 @@ export function WorkItem<TData = unknown>({
   onMouseEnter,
   onMouseLeave,
 }: WorkItemProps<TData>) {
-  const baseClasses =
-    "absolute top-1/2 -translate-y-1/2 h-[60%] rounded cursor-pointer select-none overflow-hidden transition-shadow";
+  // When top/itemH are provided (itemStagger > 0) use explicit pixel positioning.
+  // Otherwise keep the original centered layout (top-1/2 -translate-y-1/2 h-[60%]).
+  const positionClasses =
+    top !== undefined
+      ? "absolute rounded cursor-pointer select-none overflow-hidden transition-shadow"
+      : "absolute top-1/2 -translate-y-1/2 h-[60%] rounded cursor-pointer select-none overflow-hidden transition-shadow";
 
   // Keep WorkItems in z-[1..2] — well below sticky labels (z-10) and header (z-20)
   const stateClasses = isSelected
@@ -35,8 +46,12 @@ export function WorkItem<TData = unknown>({
 
   return (
     <div
-      className={`${baseClasses} ${stateClasses}`}
-      style={{ left, width }}
+      className={`${positionClasses} ${stateClasses}`}
+      style={{
+        left,
+        width,
+        ...(top !== undefined ? { top, height: itemH } : {}),
+      }}
       role="button"
       tabIndex={0}
       aria-selected={isSelected}

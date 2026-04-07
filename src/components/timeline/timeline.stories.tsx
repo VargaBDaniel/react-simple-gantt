@@ -779,6 +779,8 @@ const OVERLAP_ITEMS: TimelineItem<TaskData>[] = [
 
 export const OverlappingItems: Story = {
   render: () => {
+    const [stagger, setStagger] = useState(0);
+
     const timeline = useTimeline<TaskData>({
       tracks: OVERLAP_TRACKS,
       items: OVERLAP_ITEMS,
@@ -786,7 +788,14 @@ export const OverlappingItems: Story = {
       endDate: new Date(2026, 1, 1),
       view: "day",
       dayWidth: 36,
+      itemStagger: stagger,
     });
+
+    const PRESETS = [
+      { label: "0 — full overlap", value: 0 },
+      { label: "0.5 — partial stagger", value: 0.5 },
+      { label: "1 — full lanes", value: 1 },
+    ];
 
     return (
       <div className="p-6 flex flex-col gap-3 bg-gray-50 min-h-screen font-sans">
@@ -797,9 +806,27 @@ export const OverlappingItems: Story = {
           <p className="text-sm text-gray-500 mt-0.5">
             Track A has three fully-overlapping items. Track B has two
             partially-overlapping items. Track C has two items that touch but do
-            not overlap. Later items in DOM order paint on top; selecting or
-            hovering an item brings it to the front via z-index.
+            not overlap. Use the stagger control to spread overlapping items
+            into separate lanes — row height grows automatically.
           </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-gray-600">
+            itemStagger:
+          </span>
+          {PRESETS.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setStagger(p.value)}
+              className={`px-3 py-1 text-sm rounded-md border transition-colors ${
+                stagger === p.value
+                  ? "bg-blue-500 text-white border-blue-500"
+                  : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
         <Timeline {...timeline.getTimelineProps()} />
       </div>

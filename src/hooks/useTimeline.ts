@@ -28,6 +28,7 @@ export function useTimeline<TData = unknown>(
     renderTrackIndicator,
     infiniteScroll,
     onDateWindowChange,
+    itemStagger,
   } = config;
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -75,6 +76,7 @@ export function useTimeline<TData = unknown>(
     renderTrackIndicator,
     infiniteScroll,
     onDateWindowChange,
+    itemStagger,
   });
 
   return { getTimelineProps, selectedItemId, hoveredItemId, setSelectedItemId };
