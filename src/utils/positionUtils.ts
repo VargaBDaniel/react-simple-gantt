@@ -19,7 +19,7 @@ export function dateToPixel(
  * Returns the CSS `left` and `width` values (in px) for a timeline item bar.
  */
 export function itemToStyle(
-  item: TimelineItem<unknown>,
+  item: TimelineItem,
   startDate: Date,
   dayWidth: number,
 ): { left: number; width: number } {
