@@ -1,9 +1,12 @@
+/// <reference types="vite/client" />
+import { parameters as docsParameters } from "@storybook/addon-docs/preview";
 import { definePreview } from "@storybook/react-vite";
 import "../src/index.css";
 
 export default definePreview({
   addons: [],
   parameters: {
+    ...docsParameters,
     controls: {
       matchers: {
         color: /(background|color)$/i,

@@ -1,0 +1,559 @@
+import { Meta, Canvas } from "@storybook/addon-docs/blocks";
+import * as TimelineStories from "./timeline.stories";
+
+<Meta of={TimelineStories} />
+
+# Timeline
+
+A headless-first, horizontally-scrollable Gantt-style timeline component for React. Built with TypeScript, Tailwind CSS v4, and zero heavy calendar dependencies.
+
+> **Quick install**
+>
+> ```bash
+> npm install react-simple-gantt
+> ```
+>
+> Peer dependencies: `react >=18`, `react-dom >=18`, `date-fns >=3`
+
+---
+
+## How it works
+
+The library ships two public exports:
+
+| Export                    | Role                                                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `useTimeline(config)`     | Stateful hook — owns selection, hover, and item-layout logic. Returns `getTimelineProps()`.                  |
+| `<Timeline {...props} />` | Pure presentational component — renders the calendar header, track labels, and item bars. Never holds state. |
+
+The recommended pattern is to call `useTimeline` in your page/component, spread its result into `<Timeline>`, and wire external state (view switcher, selection panel, etc.) around it.
+
+```tsx
+import { useTimeline, Timeline } from "react-simple-gantt";
+
+function MyGantt() {
+  const timeline = useTimeline({ tracks, items, startDate, endDate });
+  return <Timeline {...timeline.getTimelineProps()} />;
+}
+```
+
+---
+
+## Data model
+
+### `TimelineTrack`
+
+```ts
+interface TimelineTrack {
+  id: string;
+  title: string | ReactNode; // plain string or a React element (avatar, badge, etc.)
+}
+```
+
+### `TimelineItem<TData>`
+
+```ts
+interface TimelineItem<TData = unknown> {
+  id: string;
+  trackId: string; // must match a TimelineTrack.id
+  start: Date;
+  end: Date; // inclusive — a single-day item uses start === end
+  label?: string;
+  data?: TData; // attach any domain payload; accessible in renderItem
+}
+```
+
+`TData` is a generic type parameter. Passing a concrete type (e.g. `TimelineItem<{ priority: string }>`) makes `item.data` fully typed inside `renderItem`.
+
+---
+
+## `useTimeline` config reference
+
+```ts
+interface UseTimelineConfig<TData = unknown> {
+  // ── Required ──────────────────────────────────────────────────────────────
+  tracks: TimelineTrack[];
+  items: TimelineItem<TData>[];
+  startDate: Date;
+  endDate: Date;
+
+  // ── Display ───────────────────────────────────────────────────────────────
+  view?: "day" | "week" | "month"; // default: "day"
+  dayWidth?: number; // px per day column, default: 40
+  labelWidth?: number; // px for the track label column, default: 200
+
+  // ── Interaction callbacks ─────────────────────────────────────────────────
+  onItemClick?: (item: TimelineItem<TData>) => void;
+  onItemHover?: (item: TimelineItem<TData> | null) => void; // null on mouse-leave
+  onTrackClick?: (trackId: string, date: Date) => void; // date = clicked calendar slot
+
+  // ── Custom renderers ──────────────────────────────────────────────────────
+  renderItem?: (props: RenderItemProps<TData>) => ReactNode;
+  renderTrackIndicator?: (date: Date) => ReactNode; // vertical "today" marker, etc.
+
+  // ── Infinite scroll ───────────────────────────────────────────────────────
+  infiniteScroll?: boolean; // default: false
+  onDateWindowChange?: (start: Date, end: Date) => void; // triggered on window growth
+
+  // ── Item stagger ──────────────────────────────────────────────────────────
+  itemStagger?: number; // 0 = overlap (default), 1 = separate lanes, 0–1 = interpolate
+}
+```
+
+### Return value
+
+```ts
+interface UseTimelineReturn<TData> {
+  getTimelineProps: () => TimelineProps<TData>; // spread straight onto <Timeline>
+  selectedItemId: string | null;
+  hoveredItemId: string | null;
+  setSelectedItemId: (id: string | null) => void; // programmatic selection
+}
+```
+
+---
+
+## Story 1 — Interactive (view switcher · selection · hover)
+
+The flagship story. Shows how to wire a view-mode switcher, handle item selection with a detail panel, and display a hover tooltip — all patterns you'll use in a real application.
+
+<Canvas of={TimelineStories.Interactive} />
+
+**Key patterns demonstrated:**
+
+**View mode switcher** — `view` and `dayWidth` are both derived from the same state variable. Changing the view simply re-runs `useTimeline` with new values; the component re-renders with the correct column widths.
+
+```tsx
+const [view, setView] = useState<ViewMode>("day");
+const dayWidth = view === "day" ? 36 : view === "week" ? 18 : 10;
+
+const timeline = useTimeline({ ..., view, dayWidth });
+```
+
+**Toggle selection** — `onItemClick` receives the clicked item. The pattern below deselects when the same item is clicked again:
+
+```tsx
+const [selected, setSelected] = useState<TimelineItem<TaskData> | null>(null);
+
+const timeline = useTimeline({
+  ...
+  onItemClick: (item) =>
+    setSelected((prev) => (prev?.id === item.id ? null : item)),
+});
+```
+
+**Hover tooltip** — `onItemHover` fires on mouse-enter with the item, and with `null` on mouse-leave:
+
+```tsx
+const [hovered, setHovered] = useState<TimelineItem<TaskData> | null>(null);
+
+const timeline = useTimeline({
+  ...
+  onItemHover: (item) => setHovered(item),
+});
+
+// In JSX:
+{hovered && <Tooltip>{hovered.label}</Tooltip>}
+```
+
+**Track click** — `onTrackClick` gives you the `trackId` and the `Date` corresponding to the horizontal position clicked. Useful for creating new items at a specific date on a track:
+
+```tsx
+onTrackClick: (trackId, date) => openCreateDialog({ trackId, date }),
+```
+
+**Vertical "today" indicator** — `renderTrackIndicator` renders a React node at a specific date across every track row. The date is passed as an argument so you can position it based on your data:
+
+```tsx
+renderTrackIndicator: (date) => (
+  <div className="flex flex-col items-center h-full">
+    <span className="text-xs bg-blue-500 text-white rounded px-1 -translate-x-1/2">
+      {date.toLocaleDateString()}
+    </span>
+    <div className="flex-1 border-l border-dashed border-blue-400" />
+  </div>
+),
+```
+
+---
+
+## Story 2 — Custom item renderer
+
+Replace the default blue bar with any JSX. Useful for priority colours, assignee avatars, progress bars, or milestone diamonds.
+
+<Canvas of={TimelineStories.CustomItemRenderer} />
+
+`renderItem` receives `{ item, isSelected, isHovered }` and must return a React node that fills the bar's bounding box (`h-full w-full`). The hook manages selection and hover state for you — just consume `isSelected` / `isHovered` to apply visual feedback.
+
+```tsx
+renderItem: ({ item, isSelected, isHovered }) => (
+  <div
+    className={`h-full w-full flex items-center gap-2 px-2 rounded
+      ${isSelected ? "ring-2 ring-white ring-offset-1" : ""}
+      ${item.data?.priority === "high" ? "bg-red-500" : "bg-amber-400"}
+    `}
+  >
+    <span className="text-xs text-white font-medium truncate">{item.label}</span>
+    <span className="ml-auto text-[10px] text-white/70">{item.data?.assignee}</span>
+  </div>
+),
+```
+
+> The outer `<div>` in the default renderer is absolutely positioned and sized by the library. Your render function only controls the **inner content** of that container.
+
+---
+
+## Story 3 — Rich track titles (ReactNode)
+
+Track `title` accepts a `ReactNode`, so you can embed icons, avatars, or badges directly in the label column without any extra config.
+
+<Canvas of={TimelineStories.RichTrackTitles} />
+
+```tsx
+const tracks = [
+  {
+    id: "frontend",
+    title: (
+      <div className="flex items-center gap-2">
+        <span>⚛️</span>
+        <span>Frontend</span>
+      </div>
+    ),
+  },
+];
+```
+
+The label column width is controlled by `labelWidth` (default `200`). Increase it when your titles are wider.
+
+---
+
+## Story 4 — Infinite scroll
+
+Enable `infiniteScroll` to let the timeline grow in both directions as the user scrolls toward an edge. The library pre-buffers 30 days outside each boundary on mount, so the scrollbar is immediately active.
+
+<Canvas of={TimelineStories.InfiniteScroll} />
+
+```tsx
+const timeline = useTimeline({
+  tracks,
+  items,
+  startDate,
+  endDate,
+  view: "day",
+  dayWidth: 36,
+  infiniteScroll: true,
+  onDateWindowChange: (start, end) => {
+    // Called every time the window grows.
+    // Use this to load additional items for the new range.
+    fetchItems({ from: start, to: end });
+  },
+});
+```
+
+`onDateWindowChange` fires **after** the DOM has committed the new window. The new `start`/`end` values represent the full extended range including the pre-buffer.
+
+> **Tip:** wrap the timeline in a fixed-height container so the horizontal scrollbar is always visible:
+>
+> ```tsx
+> <div className="h-72">
+>   <Timeline {...timeline.getTimelineProps()} />
+> </div>
+> ```
+
+---
+
+## Story 5 — Infinite scroll: boundary items
+
+Items that straddle the initial `startDate` / `endDate` are handled correctly — no positional jumps occur when the window extends to fully include them.
+
+<Canvas of={TimelineStories.InfiniteScrollBoundaryItems} />
+
+The initial window in this story is only 10 days wide (Jan 10–20). Items outside that window appear as the user scrolls and the window expands.
+
+---
+
+## Story 6 — Infinite scroll: async data loading
+
+A real-world pattern where new items are fetched from an API when the window grows. The key is to deduplicate by `id` when merging fetched items into state, and to track which windows have already been fetched to avoid redundant requests.
+
+<Canvas of={TimelineStories.InfiniteScrollAsyncData} />
+
+```tsx
+const fetchedWindows = useRef(new Set<string>());
+
+const timeline = useTimeline({
+  tracks,
+  items, // state — grows as new data arrives
+  startDate,
+  endDate,
+  infiniteScroll: true,
+  onDateWindowChange: (start, end) => {
+    const key = `${start.getTime()}-${end.getTime()}`;
+    if (fetchedWindows.current.has(key)) return; // already fetched
+    fetchedWindows.current.add(key);
+
+    fetchItemsForRange(start, end).then((newItems) => {
+      setItems((prev) => {
+        const existingIds = new Set(prev.map((i) => i.id));
+        return [...prev, ...newItems.filter((i) => !existingIds.has(i.id))];
+      });
+    });
+  },
+});
+```
+
+Items that arrive after the window has expanded render at their correct positions without any layout shift.
+
+---
+
+## Story 7 — Empty state
+
+Tracks with no items render as empty rows at the correct height. No special handling required.
+
+<Canvas of={TimelineStories.EmptyState} />
+
+```tsx
+const timeline = useTimeline({
+  tracks,
+  items: [], // no items — rows still render
+  startDate,
+  endDate,
+});
+```
+
+---
+
+## Story 8 — Overlapping items & `itemStagger`
+
+By default (`itemStagger: 0`) overlapping items stack on top of each other. Set `itemStagger: 1` to spread them into non-overlapping lanes; the row height grows automatically to fit. Values between `0` and `1` interpolate between the two extremes.
+
+<Canvas of={TimelineStories.OverlappingItems} />
+
+```tsx
+const timeline = useTimeline({
+  tracks,
+  items,
+  startDate,
+  endDate,
+  itemStagger: 1, // 0 | 0.5 | 1, or any value in between
+});
+```
+
+Lane assignment uses a greedy interval-scheduling algorithm (earliest-deadline-first), so items are packed into as few lanes as possible.
+
+| `itemStagger` | Behaviour                                                                |
+| ------------- | ------------------------------------------------------------------------ |
+| `0` (default) | All overlapping items fully stack — later items in DOM order are on top  |
+| `0–1`         | Partial separation — items offset but may still visually overlap         |
+| `1`           | Full lanes — items are non-overlapping; row height expands automatically |
+
+---
+
+## Story 9 — Single-day & point-in-time items
+
+Items where `start === end` (zero-duration milestones) and items spanning exactly one day both render correctly. Use `renderItem` to replace the default bar with a custom milestone marker.
+
+<Canvas of={TimelineStories.SingleDayItems} />
+
+```tsx
+renderItem: ({ item, isSelected }) => {
+  const isMilestone = item.start.getTime() === item.end.getTime();
+  return isMilestone ? (
+    <div className="h-full w-full flex items-center justify-center">
+      <div className={`w-3 h-3 rotate-45 bg-purple-500
+        ${isSelected ? "ring-2 ring-purple-300" : ""}`}
+      />
+    </div>
+  ) : (
+    <div className="h-full w-full flex items-center px-1">
+      <span className="text-xs text-white truncate">{item.label}</span>
+    </div>
+  );
+},
+```
+
+> `end` is **inclusive** — a single-day task occupies exactly one `dayWidth` column.
+
+---
+
+## Story 10 — Many tracks (sticky header & labels)
+
+With 20+ tracks the calendar header stays pinned to the top and the track label column stays pinned to the left as the user scrolls in either direction.
+
+<Canvas of={TimelineStories.ManyTracks} />
+
+Wrap the timeline in a fixed-height container to force vertical overflow and see the sticky behaviour in action:
+
+```tsx
+<div className="h-96 overflow-hidden">
+  <Timeline {...timeline.getTimelineProps()} />
+</div>
+```
+
+---
+
+## Story 11 — Out-of-window items
+
+With `infiniteScroll` disabled, items outside the `startDate`–`endDate` range are clipped. Items that straddle a boundary show only their in-window portion; items entirely outside are not rendered.
+
+<Canvas of={TimelineStories.OutOfWindowItems} />
+
+Enable `infiniteScroll` if you want out-of-window items to become visible as the user scrolls.
+
+---
+
+## Story 12 — Zoom levels
+
+`dayWidth` controls how many pixels each day occupies. Combine it with `view` to implement a zoom control.
+
+<Canvas of={TimelineStories.ZoomLevels} />
+
+```tsx
+const ZOOM_PRESETS = [
+  { label: "Overview",  view: "month" as ViewMode, dayWidth: 10 },
+  { label: "Default",   view: "day"   as ViewMode, dayWidth: 36 },
+  { label: "Detailed",  view: "day"   as ViewMode, dayWidth: 80 },
+];
+
+const [zoom, setZoom] = useState(ZOOM_PRESETS[1]);
+
+const timeline = useTimeline({ ..., view: zoom.view, dayWidth: zoom.dayWidth });
+```
+
+Practical ranges: `4`–`8` px/day for dense year-views; `36`–`80` px/day for readable day-views.
+
+---
+
+## Story 13 — Cross-year span
+
+Date ranges that straddle a year boundary are fully supported. The calendar header top row shows the correct month-year label for each segment.
+
+<Canvas of={TimelineStories.CrossYearSpan} />
+
+---
+
+## Full example: project roadmap with view switcher
+
+Combining the most common patterns into a production-ready starting point:
+
+```tsx
+import { useState } from "react";
+import { useTimeline, Timeline } from "react-simple-gantt";
+import type { TimelineItem, TimelineTrack, ViewMode } from "react-simple-gantt";
+
+type Task = { priority: "high" | "medium" | "low"; assignee: string };
+
+const tracks: TimelineTrack[] = [
+  { id: "design", title: "Design" },
+  { id: "frontend", title: "Frontend" },
+  { id: "backend", title: "Backend" },
+];
+
+const items: TimelineItem<Task>[] = [
+  {
+    id: "t1",
+    trackId: "design",
+    start: new Date(2026, 0, 5),
+    end: new Date(2026, 0, 14),
+    label: "Wireframes",
+    data: { priority: "high", assignee: "Alice" },
+  },
+  // ... more items
+];
+
+export function ProjectRoadmap() {
+  const [view, setView] = useState<ViewMode>("day");
+  const [selected, setSelected] = useState<TimelineItem<Task> | null>(null);
+  const dayWidth = view === "day" ? 36 : view === "week" ? 18 : 10;
+
+  const timeline = useTimeline<Task>({
+    tracks,
+    items,
+    startDate: new Date(2026, 0, 1),
+    endDate: new Date(2026, 2, 31),
+    view,
+    dayWidth,
+    infiniteScroll: true,
+    onItemClick: (item) =>
+      setSelected((prev) => (prev?.id === item.id ? null : item)),
+    renderItem: ({ item, isSelected, isHovered }) => (
+      <div
+        className={`h-full w-full flex items-center px-2 rounded transition-all
+          ${item.data?.priority === "high" ? "bg-red-500" : "bg-blue-400"}
+          ${isSelected ? "ring-2 ring-white ring-offset-1" : ""}
+          ${isHovered ? "brightness-110" : ""}
+        `}
+      >
+        <span className="text-xs text-white font-medium truncate">
+          {item.label}
+        </span>
+      </div>
+    ),
+  });
+
+  return (
+    <div className="flex flex-col gap-4 p-6">
+      {/* View switcher */}
+      <div className="flex gap-2">
+        {(["day", "week", "month"] as ViewMode[]).map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`px-3 py-1 rounded border text-sm capitalize
+              ${view === v ? "bg-blue-500 text-white" : "bg-white text-gray-600"}`}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+
+      {/* Timeline */}
+      <Timeline {...timeline.getTimelineProps()} />
+
+      {/* Selection panel */}
+      {selected && (
+        <div className="bg-white border rounded p-4 flex gap-6">
+          <p className="font-semibold">{selected.label}</p>
+          <p className="text-sm text-gray-600">{selected.data?.assignee}</p>
+          <button onClick={() => setSelected(null)} className="ml-auto">
+            ✕
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## Styling
+
+The component is styled with **Tailwind CSS v4**. Make sure Tailwind is configured in your project and that the library's CSS is imported:
+
+```ts
+// In your entry point or Storybook preview
+import "react-simple-gantt/dist/style.css";
+```
+
+All colours, spacing, and border styles are utility-class-based. Override by targeting the component's wrapper class or by replacing item rendering entirely with `renderItem`.
+
+---
+
+## TypeScript
+
+All public types are exported from the package root:
+
+```ts
+import type {
+  TimelineItem,
+  TimelineTrack,
+  TimelineProps,
+  UseTimelineConfig,
+  UseTimelineReturn,
+  RenderItemProps,
+  ViewMode,
+} from "react-simple-gantt";
+```
+
+The generic `TData` flows through `useTimeline`, `TimelineItem`, and `RenderItemProps`, so your custom data payload is fully typed end-to-end without any casts.
